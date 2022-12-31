@@ -6,9 +6,7 @@ enum TreeNode<'a, P: Pool<Self> + 'a, T> {
 }
 
 impl<'a, P: Pool<Self> + 'a, T> TreeNode<'a, P, T> {
-    type Ptr = P::Ptr<'a>;
-
-    fn new(pool: &'a mut P, l: Self::Ptr, x: T, h: u8, r: Self::Ptr) -> Self::Ptr {
+    fn new(pool: &'a mut P, l: P::Ptr<'a>, x: T, h: u8, r: P::Ptr<'a>) -> P::Ptr<'a> {
         pool.create(Self::Node(l, x, h, r))
     }
 }
