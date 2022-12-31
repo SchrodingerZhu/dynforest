@@ -2,7 +2,6 @@ use crate::forest::Aggregator;
 use crate::index::TreeNode;
 use crate::pool::Pool;
 use std::marker::PhantomData;
-use std::ops::Deref;
 
 struct SplayData<P, T>
 where
