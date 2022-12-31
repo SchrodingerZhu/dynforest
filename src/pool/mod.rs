@@ -4,11 +4,9 @@ mod pesudo;
 use std::ops::{Deref, DerefMut};
 
 pub trait Pool<T> {
-    type Ptr<'a>: Deref<Target = T> + DerefMut
-    where
-        Self: 'a;
-    fn create<'a>(&'a mut self, data: T) -> Self::Ptr<'a>;
-    fn recycle<'a>(&'a mut self, ptr: Self::Ptr<'a>);
+    type Ptr: Deref<Target = T> + DerefMut + Copy + PartialEq;
+    fn create(&mut self, data: T) -> Self::Ptr;
+    fn recycle(&mut self, ptr: Self::Ptr);
 }
 
 pub use monotonic::MonotonicPool;

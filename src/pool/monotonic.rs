@@ -1,5 +1,4 @@
 use crate::pool::Pool;
-use std::marker::PhantomData;
 use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{Deref, DerefMut};
 use std::pin::Pin;
@@ -26,6 +25,12 @@ pub struct MonotonicPool<T, const N: usize = 64> {
     memory: Vec<Pin<Box<Block<T, N>>>>,
     cursor: usize,
     recycle_list: Option<NonNull<MaybeUninit<PoolCell<T>>>>,
+}
+
+impl<T, const N: usize> Default for MonotonicPool<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T, const N: usize> MonotonicPool<T, N> {
@@ -94,7 +99,7 @@ impl<T, const N: usize> MonotonicPool<T, N> {
 }
 
 impl<T, const N: usize> Pool<T> for MonotonicPool<T, N> {
-    type Ptr<'a> = Pointer<'a, T> where Self: 'a;
+    type Ptr = Pointer<T>;
 
     fn create(&mut self, data: T) -> Pointer<T> {
         let mut slot = self.get_free_slot();
@@ -102,7 +107,7 @@ impl<T, const N: usize> Pool<T> for MonotonicPool<T, N> {
             slot.as_mut().write(PoolCell {
                 data: ManuallyDrop::new(data),
             });
-            Pointer(slot, Default::default())
+            Pointer(slot)
         }
     }
 
@@ -117,12 +122,23 @@ impl<T, const N: usize> Pool<T> for MonotonicPool<T, N> {
 }
 
 #[repr(transparent)]
-pub struct Pointer<'a, T>(NonNull<MaybeUninit<PoolCell<T>>>, PhantomData<&'a T>);
+pub struct Pointer<T>(NonNull<MaybeUninit<PoolCell<T>>>);
 
-impl<'a, T> Deref for Pointer<'a, T>
-where
-    Self: 'a,
-{
+impl<T> PartialEq for Pointer<T> {
+    fn eq(&self, other: &Self) -> bool {
+        other.0.as_ptr().eq(&self.0.as_ptr())
+    }
+}
+
+impl<T> Clone for Pointer<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
+impl<T> Copy for Pointer<T> {}
+
+impl<T> Deref for Pointer<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -130,10 +146,7 @@ where
     }
 }
 
-impl<'a, T> DerefMut for Pointer<'a, T>
-where
-    Self: 'a,
-{
+impl<T> DerefMut for Pointer<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.0.as_mut().assume_init_mut().data.deref_mut() }
     }
