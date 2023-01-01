@@ -38,7 +38,7 @@ where
     I: IndexTree,
     Assoc: Association<Pointer<I::Node<LCTData<I, T>>>>,
 {
-    fn add<P: Pool<I::Node<LCTData<I, T>>>>(&mut self, pool: &mut P, key: &Assoc::Key, value: T) {
+    fn add<P: Pool<I::Node<LCTData<I, T>>>>(&mut self, pool: &mut P, key: Assoc::Key, value: T) {
         self.pointers.set(
             key,
             pool.create(I::node(LCTData {
@@ -169,6 +169,6 @@ impl<T> Aggregator<T> for DoNothing {
 #[test]
 fn test() {
     let mut lct = SplayLCT::<(), DoNothing, AssocVector<_>, Pesudo>::new(Pesudo::new_in(Global));
-    lct.tree.add(&mut lct.pool, &0, ());
+    lct.tree.add(&mut lct.pool, 0, ());
     exit(0);
 }
