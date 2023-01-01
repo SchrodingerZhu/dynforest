@@ -106,10 +106,15 @@ impl IndexTree for Splay {
     }
 
     fn merge_before<T, A: Aggregator<T>>(
-        x: Pointer<Self::Node<T>>,
-        y: Pointer<Self::Node<T>>,
+        mut x: Pointer<Self::Node<T>>,
+        mut y: Pointer<Self::Node<T>>,
     ) -> Pointer<Self::Node<T>> {
-        todo!()
+        Splay::splay::<T, A>(x);
+        Splay::splay::<T, A>(y);
+        x.children[0].replace(y);
+        y.parent.replace(x);
+        Splay::maintain::<T, A>(x);
+        x
     }
 
     fn merge_after<T, A: Aggregator<T>>(
