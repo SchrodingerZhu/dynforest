@@ -8,6 +8,12 @@ pub trait Association<T> {
 #[repr(transparent)]
 pub struct AssocVector<T>(Vec<Option<T>>);
 
+impl<T> Default for AssocVector<T> {
+    fn default() -> Self {
+        Self(Vec::new())
+    }
+}
+
 impl<T> Association<T> for AssocVector<T> {
     type Key = usize;
 

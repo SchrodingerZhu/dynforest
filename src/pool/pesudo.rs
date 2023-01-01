@@ -1,29 +1,13 @@
-use crate::pool::Pool;
+use crate::pool::{Pointer, Pool, PoolCell};
 use std::alloc::{Allocator, Global};
 use std::fmt::{Debug, Formatter};
+use std::mem::{ManuallyDrop, MaybeUninit};
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
 pub struct Pesudo<A: Allocator = Global> {
     alloc: A,
 }
-
-#[repr(transparent)]
-pub struct Pointer<T>(NonNull<T>);
-
-impl<T> PartialEq for Pointer<T> {
-    fn eq(&self, other: &Self) -> bool {
-        other.0.as_ptr().eq(&self.0.as_ptr())
-    }
-}
-
-impl<T> Clone for Pointer<T> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T> Copy for Pointer<T> {}
 
 impl<A: Allocator> Pesudo<A> {
     pub fn new_in(alloc: A) -> Self {
@@ -38,30 +22,21 @@ impl<T: Debug> Debug for Pointer<T> {
 }
 
 impl<A: Allocator, T> Pool<T> for Pesudo<A> {
-    type Ptr = Pointer<T>;
-
-    fn create(&mut self, data: T) -> Self::Ptr {
-        let leaked = Box::leak(Box::new_in(data, self.alloc.by_ref()));
-        unsafe { Pointer(NonNull::new_unchecked(leaked as _)) }
+    fn create(&mut self, data: T) -> Pointer<T> {
+        unsafe {
+            let leaked = Box::leak(Box::new_in(
+                MaybeUninit::new(PoolCell {
+                    data: ManuallyDrop::new(data),
+                }),
+                self.alloc.by_ref(),
+            ));
+            Pointer(NonNull::new_unchecked(leaked as _))
+        }
     }
 
-    fn recycle(&mut self, ptr: Self::Ptr) {
+    fn recycle(&mut self, ptr: Pointer<T>) {
         unsafe {
             Box::from_raw_in(ptr.0.as_ptr(), self.alloc.by_ref());
         }
-    }
-}
-
-impl<T> Deref for Pointer<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { self.0.as_ref() }
-    }
-}
-
-impl<T> DerefMut for Pointer<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { self.0.as_mut() }
     }
 }

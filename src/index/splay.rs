@@ -1,20 +1,21 @@
 use crate::forest::Aggregator;
-use crate::index::TreeNode;
-use crate::pool::Pool;
+use crate::index::{IndexTree, PointerDerivation, TreeNode};
+use crate::pool::{Pointer, Pool};
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 
-struct SplayData<T> {
+pub struct SplayData<T> {
     data: T,
     reversed: u8,
 }
 
-type Node<P, T> = TreeNode<P, SplayData<T>>;
+pub type Node<T> = TreeNode<SplayData<T>>;
 
-struct SplayOperator<T, P, A>(PhantomData<(T, P, A)>);
+pub struct Splay;
 
-impl<T, P: Pool<Node<P, T>>, A: Aggregator<T>> SplayOperator<T, P, A> {
+impl Splay {
     // handle the reverse process
-    fn push_down(mut n: P::Ptr) {
+    fn push_down<T>(mut n: Pointer<Node<T>>) {
         if n.attr.reversed != 0 {
             n.children.swap(0, 1);
             if let Some(mut x) = n.children[0] {
@@ -28,7 +29,7 @@ impl<T, P: Pool<Node<P, T>>, A: Aggregator<T>> SplayOperator<T, P, A> {
     }
 
     // get this index of a child in its parent
-    fn which_child(p: P::Ptr, c: P::Ptr) -> usize {
+    fn which_child<T>(p: Pointer<Node<T>>, c: Pointer<Node<T>>) -> usize {
         if p.children[0].contains(&c) {
             0
         } else {
@@ -37,7 +38,7 @@ impl<T, P: Pool<Node<P, T>>, A: Aggregator<T>> SplayOperator<T, P, A> {
     }
 
     // maintain the aggregation state.
-    fn maintain(mut n: P::Ptr) {
+    fn maintain<T, A: Aggregator<T>>(mut n: Pointer<Node<T>>) {
         let left = n.children[0];
         let right = n.children[1];
         A::update(
@@ -48,16 +49,16 @@ impl<T, P: Pool<Node<P, T>>, A: Aggregator<T>> SplayOperator<T, P, A> {
     }
 
     // binary tree rotation
-    fn rotate(mut n: P::Ptr) {
+    fn rotate<T, A: Aggregator<T>>(mut n: Pointer<Node<T>>) {
         if let Some(mut parent) = n.parent {
             if let Some(mut grandparent) = parent.parent {
-                Self::push_down(grandparent);
+                Self::push_down::<T>(grandparent);
             }
-            Self::push_down(n);
+            Self::push_down::<T>(n);
 
-            let side = Self::which_child(parent, n);
+            let side = Self::which_child::<T>(parent, n);
             if let Some(mut grandparent) = parent.parent {
-                let parent_side = Self::which_child(grandparent, parent);
+                let parent_side = Self::which_child::<T>(grandparent, parent);
                 grandparent.children[parent_side].replace(n);
             }
             n.parent = parent.parent;
@@ -67,75 +68,82 @@ impl<T, P: Pool<Node<P, T>>, A: Aggregator<T>> SplayOperator<T, P, A> {
             }
             n.children[side ^ 1].replace(parent);
             parent.parent.replace(n);
-            Self::maintain(parent);
-            Self::maintain(n);
+            Self::maintain::<T, A>(parent);
+            Self::maintain::<T, A>(n);
         }
     }
 
     // rotate a node to the root of a tree
-    fn splay(n: P::Ptr) {
+    fn splay<T, A: Aggregator<T>>(n: Pointer<Node<T>>) {
         while let Some(parent) = n.parent {
             match parent.parent {
-                None => Self::rotate(n),
+                None => Self::rotate::<T, A>(n),
                 Some(grandparent) => {
-                    Self::push_down(grandparent);
-                    Self::push_down(parent);
+                    Self::push_down::<T>(grandparent);
+                    Self::push_down::<T>(parent);
                     if Self::which_child(parent, n) == Self::which_child(grandparent, parent) {
-                        Self::rotate(parent);
-                        Self::rotate(n);
+                        Self::rotate::<T, A>(parent);
+                        Self::rotate::<T, A>(n);
                     } else {
-                        Self::rotate(n);
-                        Self::rotate(n);
+                        Self::rotate::<T, A>(n);
+                        Self::rotate::<T, A>(n);
                     }
                 }
             }
         }
     }
+}
 
-    // Split the tree into two halves.
-    // Cut off all the nodes that comes later than the given node in the in-order traversal order.
-    fn split_after(mut n: P::Ptr) {
-        Self::splay(n);
-        Self::push_down(n);
-        if let Some(mut right) = n.children[1] {
-            right.parent.take();
-            n.children[1].take();
-            Self::maintain(n);
+impl IndexTree for Splay {
+    type Node<T> = Node<T>;
+
+    fn node<T>(data: T) -> Self::Node<T> {
+        Self::Node {
+            attr: SplayData { data, reversed: 0 },
+            children: [None; 2],
+            parent: None,
         }
     }
 
-    // Split the tree into two halves.
-    // Cut off all the nodes that comes earlier than the given node in the in-order traversal order.
-    fn split_before(mut n: P::Ptr) {
-        Self::splay(n);
-        Self::push_down(n);
-        if let Some(mut left) = n.children[0] {
-            left.parent.take();
-            n.children[1].take();
-            Self::maintain(n);
-        }
+    fn merge_before<T, A: Aggregator<T>>(
+        x: Pointer<Self::Node<T>>,
+        y: Pointer<Self::Node<T>>,
+    ) -> Pointer<Self::Node<T>> {
+        todo!()
     }
 
-    // Reverse the in-order traversal order of the subtree.
-    fn reverse(mut n: P::Ptr) {
-        n.attr.reversed ^= 1;
+    fn merge_after<T, A: Aggregator<T>>(
+        x: Pointer<Self::Node<T>>,
+        y: Pointer<Self::Node<T>>,
+    ) -> Pointer<Self::Node<T>> {
+        todo!()
     }
 
-    // Merge two tree, `m` is the largest node in the adopting tree.
-    // `n` is the root of the adopted tree.
-    fn merge_after(mut m: P::Ptr, mut n: P::Ptr) {
-        Self::splay(m);
-        m.children[1].replace(n);
-        n.parent.replace(m);
-        Self::maintain(m);
+    fn split_before<T, A: Aggregator<T>>(
+        x: Pointer<Self::Node<T>>,
+    ) -> (Pointer<Self::Node<T>>, Pointer<Self::Node<T>>) {
+        todo!()
     }
 
-    // Merge two tree, `m` is the smallest node in the adopting tree.
-    // `n` is the root of the adopted tree.
-    fn merge_before(mut m: P::Ptr, mut n: P::Ptr) {
-        Self::splay(m);
-        m.children[0].replace(n);
-        n.parent.replace(m);
-        Self::maintain(n);
+    fn split_after<T, A: Aggregator<T>>(
+        x: Pointer<Self::Node<T>>,
+    ) -> (Pointer<Self::Node<T>>, Pointer<Self::Node<T>>) {
+        todo!()
+    }
+
+    fn reverse<T, A: Aggregator<T>>(n: Pointer<Self::Node<T>>) -> Pointer<Self::Node<T>> {
+        todo!()
+    }
+
+    fn data<T>(n: &Pointer<Self::Node<T>>) -> &mut T {
+        todo!()
+    }
+
+    fn remove<T, A: Aggregator<T>>(n: Pointer<Self::Node<T>>) {
+        todo!()
+    }
+
+    fn find_min_node<T, A: Aggregator<T>>(n: Pointer<Self::Node<T>>) -> Pointer<Self::Node<T>> {
+        todo!()
     }
 }
