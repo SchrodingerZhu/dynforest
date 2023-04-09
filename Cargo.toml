@@ -2,8 +2,14 @@
 name = "dynforest"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+authors = ["schrodingerzhu <yifanzhu@rochester.edu>"]
+description = "dynamic forest management"
+license = "Apache-2.0"
+keywords = ["splay", "graph", "connectivity", "forest", "dynamic", "tree"]
+categories = ["algorithms", "data-structures", "no-std"]
+homepage = "https://github.com/schrodingerzhu/dynforest"
+repository = "https://github.com/schrodingerzhu/dynforest"
+readme = "README.md"
 
 [dev-dependencies]
 rand = "0.8"
