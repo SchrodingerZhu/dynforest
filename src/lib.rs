@@ -15,6 +15,7 @@ extern crate alloc;
 
 use alloc::rc::Rc;
 use core::cell::UnsafeCell;
+use core::hash::{Hash, Hasher};
 use core::ptr::NonNull;
 
 struct Node {
@@ -311,6 +312,12 @@ impl PartialEq for Handle {
 }
 
 impl Eq for Handle {}
+
+impl Hash for Handle {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        core::ptr::hash(self.target.get(), state);
+    }
+}
 
 impl Drop for Connection {
     fn drop(&mut self) {
