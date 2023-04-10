@@ -1,6 +1,6 @@
 [package]
 name = "dynforest"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["schrodingerzhu <yifanzhu@rochester.edu>"]
 description = "dynamic forest management"
